@@ -25,7 +25,11 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      padding: 14px 12px 85px 12px;
+      /* iPhoneのノッチ・Dynamic Island・ホームバーの余白を完全考慮 */
+      padding-top: calc(env(safe-area-inset-top, 20px) + 10px);
+      padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 75px);
+      padding-left: 12px;
+      padding-right: 12px;
       margin: 0;
       background-color: var(--bg);
       color: var(--text);
@@ -40,7 +44,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px;
+      padding: 12px 14px;
       background: linear-gradient(135deg, #1e1b4b, #312e81);
       border-radius: 16px;
       margin-bottom: 12px;
@@ -48,21 +52,21 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }
     .app-title {
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       font-weight: 800;
       display: flex;
       align-items: center;
       gap: 6px;
       letter-spacing: 0.5px;
     }
-    .header-actions { display: flex; align-items: center; gap: 6px; }
-    .btn-key {
-      font-size: 0.7rem;
+    .header-actions { display: flex; align-items: center; gap: 5px; }
+    .btn-header {
+      font-size: 0.68rem;
       background: rgba(255, 255, 255, 0.1);
       border: 1px solid var(--border);
       color: #cbd5e1;
-      padding: 4px 8px;
-      border-radius: 10px;
+      padding: 4px 7px;
+      border-radius: 8px;
       cursor: pointer;
     }
     .badge {
@@ -70,7 +74,7 @@
       background: rgba(99, 102, 241, 0.25);
       border: 1px solid var(--accent);
       color: #c7d2fe;
-      padding: 3px 8px;
+      padding: 3px 7px;
       border-radius: 20px;
       font-weight: 600;
     }
@@ -233,7 +237,7 @@
       font-size: 0.88rem;
       line-height: 1.75;
       min-height: 260px;
-      max-height: 55vh;
+      max-height: 52vh;
       overflow-y: auto;
       outline: none;
       white-space: pre-wrap;
@@ -273,16 +277,16 @@
       bottom: 0;
       left: 0;
       right: 0;
-      height: 64px;
+      height: calc(56px + env(safe-area-inset-bottom, 15px));
       background: #111827;
       border-top: 1px solid var(--border);
       display: flex;
       justify-content: space-around;
-      align-items: center;
+      align-items: flex-start;
       z-index: 1000;
       max-width: 520px;
       margin: 0 auto;
-      padding-bottom: env(safe-area-inset-bottom);
+      padding-top: 6px;
     }
     .nav-item {
       display: flex;
@@ -290,15 +294,14 @@
       align-items: center;
       justify-content: center;
       flex: 1;
-      height: 100%;
       color: var(--text-muted);
       font-size: 0.65rem;
       font-weight: 700;
       cursor: pointer;
       user-select: none;
-      gap: 3px;
+      gap: 2px;
     }
-    .nav-item span.icon { font-size: 1.2rem; }
+    .nav-item span.icon { font-size: 1.15rem; }
     .nav-item.active { color: #818cf8; }
     .nav-item.active span.icon { transform: scale(1.1); }
   </style>
@@ -309,7 +312,8 @@
     <div class="app-header">
       <div class="app-title">⚡ DOPPLE STUDIO</div>
       <div class="header-actions">
-        <button class="btn-key" onclick="promptApiKey()">🔑 API設定</button>
+        <button class="btn-header" onclick="backupRestoreData()">📦 移行</button>
+        <button class="btn-header" onclick="promptApiKey()">🔑 API</button>
         <div class="badge" id="currentTabName">✍️ 執筆</div>
       </div>
     </div>
@@ -434,6 +438,33 @@
       if (input !== null && input.trim() !== "") {
         localStorage.setItem('d_gemini_api_key', input.trim());
         alert("APIキーを保存しました！");
+      }
+    }
+
+    // Safariとホーム画面アプリ間のデータ移行ツール
+    function backupRestoreData() {
+      const choice = prompt("【データ移行】\n1: 現在の全データをコピー（バックアップ）\n2: データを貼り付けて復元\n「1」または「2」を入力してください：");
+      if (choice === "1") {
+        const dump = {};
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k.startsWith('d_')) dump[k] = localStorage.getItem(k);
+        }
+        navigator.clipboard.writeText(JSON.stringify(dump)).then(() => {
+          alert("全データをクリップボードにコピーしました！\nホーム画面に追加したアプリ側で「📦 移行」を開いて「2」を選び、貼り付けてください。");
+        });
+      } else if (choice === "2") {
+        const input = prompt("コピーしたバックアップ文字列を貼り付けてください：");
+        if (input) {
+          try {
+            const data = JSON.parse(input);
+            for (let k in data) localStorage.setItem(k, data[k]);
+            alert("データを復元しました！アプリを再読み込みします。");
+            location.reload();
+          } catch (e) {
+            alert("データの復元に失敗しました。文字列が正しいかご確認ください。");
+          }
+        }
       }
     }
 
@@ -726,7 +757,7 @@
 
     async function callGemini(promptText) {
       const apiKey = getApiKey();
-      if (!apiKey) throw new Error("APIキーが設定されていません。画面右上の「🔑 API設定」から入力してください。");
+      if (!apiKey) throw new Error("APIキーが設定されていません。画面右上の「🔑 API」から入力してください。");
 
       const url = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
       const payload = {
@@ -855,7 +886,6 @@ ${query}
       document.getElementById('activeBlockText').innerText = text;
       document.getElementById('allCopyBtn').innerText = `📑 第${currentPartNum}部の全パートを一括コピー`;
 
-      // 最終パートを表示中なら「続きを書く」ボタンを有効化、過去パート表示中ならラベル変更
       if (currentPartIndex < blockCount) {
         document.getElementById('nextBtn').innerText = `⚡ パート ${currentPartIndex} の続きとして再分岐する`;
       } else {
@@ -889,7 +919,6 @@ ${query}
       });
     }
 
-    // パート1から新規執筆（後ろのパートは綺麗にクリアして整合性を保つ）
     async function startGeneration() {
       const part = partsList.find(p => p.partNum === currentPartNum);
 
@@ -942,23 +971,19 @@ ${part.story}
       }
     }
 
-    // 続きの執筆（現在見ている最新パートから確実に直結させる）
     async function generateNext(isFinal) {
       const part = partsList.find(p => p.partNum === currentPartNum);
 
-      // もし過去のパート（例: パート1）を表示した状態で続きを押した場合、それ以降のパートを切り落として新パート2にするか確認
       if (currentPartIndex < blockCount) {
         if (!confirm(`現在「パート ${currentPartIndex}」を表示中です。\nこのパートの直後から新しい展開として書き直しますか？\n（パート ${currentPartIndex + 1} 以降の古い文章は上書きされます）`)) {
           return;
         }
-        // 後続パートをトリム
         for (let i = currentPartIndex + 1; i <= blockCount; i++) {
           delete blockDataMap[i];
         }
         blockCount = currentPartIndex;
       }
 
-      // 直前の最新テキストを確実に取得
       const lastText = blockDataMap[blockCount] || "";
       const safeLastText = lastText.length > 1500 ? lastText.substring(lastText.length - 1500) : lastText;
       const targetPartIndex = blockCount + 1;
@@ -1011,7 +1036,6 @@ ${safeLastText}
       }
     }
 
-    // 現在表示中のパートだけをリトライ
     async function retryActiveBlock() {
       const part = partsList.find(p => p.partNum === currentPartNum);
       
