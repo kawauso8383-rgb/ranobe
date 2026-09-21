@@ -694,6 +694,15 @@
       return `${charsText}\n\n【世界観・能力ルール】\n${world}`;
     }
 
+    // 全5部の全ロードマップをまとめる関数
+    function getFullStoryRoadmap() {
+      let roadmap = "【作品全体の全5部ロードマップ（全体構造）】\n";
+      partsList.forEach(p => {
+        roadmap += `◆ ${p.title}\n${p.story}\n\n`;
+      });
+      return roadmap;
+    }
+
     function switchTab(tabId, tabName) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -803,15 +812,16 @@
 【作品設定】
 ${getAllContext()}
 
+${getFullStoryRoadmap()}
+
 【現在進行中の部：${currentPart.title}】
-大まかな展開：
 ${currentPart.story}
 
 【作者からの相談】
 ${query}
 
 【回答指示】
-1. 編集者としてのアドバイス
+1. 編集者としてのアドバイス（後の部への伏線やネタバレ防止を考慮すること）
 2. 【具体的な展開案】（バトルの演出やセリフのアイデア）`;
 
       try {
@@ -890,6 +900,7 @@ ${query}
       });
     }
 
+    // パート1新規執筆（ネタバレ防止ガード付き）
     async function startGeneration() {
       const part = partsList.find(p => p.partNum === currentPartNum);
 
@@ -908,20 +919,27 @@ ${query}
       setLoading(true, `✍️ 【${part.title}】新パート1を執筆中...`);
 
       const prompt = `あなたはプロのライトノベル作家です。
-最新の作品設定と、作者が構想した【この部の大まかな展開】をしっかりと読み取って、『DOPPLE』の第${currentPartNum}部 パート1を執筆してください。
+以下の作品設定と全体のストーリー構造を把握した上で、『DOPPLE』の【第${currentPartNum}部 パート1】を執筆してください。
 
-【作品設定（最新）】
+【作品設定】
 ${getAllContext()}
 
-【ストーリー展開：${part.title}】
+${getFullStoryRoadmap()}
+
+【今回執筆するストーリー：${part.title}】
 ${part.story}
 
-【執筆ルール（最重要）】
-・この展開の「冒頭・導入シーン」から執筆を開始してください。
+【ネタバレ防止と情報開示の鉄則（最重要ガード）】
+1. あなたは第5部までの結末・全貌を知っていますが、**【第${currentPartNum}部】より先の部で明かされる秘密・正体・黒幕・結末を地の文やセリフで絶対にネタバレ（明言）してはなりません**。
+2. 後の部で明かされる真相（例：真の目的、黒幕の正体、三人目の人格など）は、現時点ではあくまで「微かな違和感」「不可解な謎」「さりげない伏線」として匂わせる程度に留めてください。
+3. 読者および登場人物の視点に合わせて、現在進行中の【第${currentPartNum}部】の出来事と緊迫感に集中して描写してください。
+
+【執筆ルール】
+・この部の「冒頭・導入シーン」から執筆を開始してください。
 ・設定解説の朗読は厳禁。キャラクターの仕草、息遣い、会話のテンポ、緊迫感で見せること（Show, don't tell）。
 ・影山零の内気さとクロの凶暴さのコントラストを際立たせること。
 ・文章量は【2,000〜2,800文字程度】で執筆してください。
-・解説や前置きは書かず、小説本文のみを出力してください。`;
+・小説本文のみを出力してください。`;
 
       try {
         const text = await callGemini(prompt);
@@ -942,6 +960,7 @@ ${part.story}
       }
     }
 
+    // 続きの執筆（ネタバレ防止ガード付き）
     async function generateNext(isFinal) {
       const part = partsList.find(p => p.partNum === currentPartNum);
 
@@ -968,14 +987,21 @@ ${part.story}
 
       const prompt = `あなたはプロのライトノベル作家です。『DOPPLE』第${currentPartNum}部の続き（パート ${targetPartIndex}）を執筆してください。
 
-【作品設定（最新）】
+【作品設定】
 ${getAllContext()}
 
-【ストーリー展開：${part.title}】
+${getFullStoryRoadmap()}
+
+【今回執筆している部：${part.title}】
 ${part.story}
 
 【直前の本文（この直後から繋げてください）】
 ${safeLastText}
+
+【ネタバレ防止と情報開示の鉄則（最重要ガード）】
+1. あなたは第5部までの全貌を知っていますが、**【第${currentPartNum}部】より先の部で明かされる秘密・正体・黒幕の真意を地の文やセリフで絶対に先出しネタバレしてはなりません**。
+2. 後の部で明かされる真相は、現時点ではあくまで「微かな違和感」「伏線」として匂わせる程度に留めてください。
+3. 現在進行中の【第${currentPartNum}部】のドラマと迫力に集中して描写してください。
 
 【執筆指示】
 ・${endingInstruction}
@@ -1007,6 +1033,7 @@ ${safeLastText}
       }
     }
 
+    // パートリトライ（ネタバレ防止ガード付き）
     async function retryActiveBlock() {
       const part = partsList.find(p => p.partNum === currentPartNum);
       
@@ -1019,11 +1046,11 @@ ${safeLastText}
       document.getElementById('retryBtn').disabled = true;
       document.getElementById('activeBlockText').innerText = "🔄 AIが再執筆中...";
 
-      let prompt = "";
+      let prompt = `あなたはプロのライトノベル作家です。『DOPPLE』【${part.title}】パート ${currentPartIndex} を書き直してください。\n\n【作品設定】\n${getAllContext()}\n\n${getFullStoryRoadmap()}\n\n【現在の展開】\n${part.story}\n\n【最重要ガード】\n第${currentPartNum}部より先の秘密や真相は絶対にネタバレせず、あくまで伏線や匂わせに留めてください。\n\n`;
       if (currentPartIndex === 1) {
-        prompt = `あなたはプロのライトノベル作家です。『DOPPLE』【${part.title}】パート1を最新設定に基づいて書き直してください。\n\n【最新設定】\n${getAllContext()}\n\n【展開】\n${part.story}\n\n冒頭シーンから2,000〜2,800文字で執筆してください。`;
+        prompt += `冒頭シーンから2,000〜2,800文字で執筆してください。`;
       } else {
-        prompt = `あなたはプロのライトノベル作家です。『DOPPLE』【${part.title}】パート ${currentPartIndex} を書き直してください。\n\n【最新設定】\n${getAllContext()}\n\n【展開】\n${part.story}\n\n【直前本文】\n${safeLastText}\n\n直前の文章から直接繋げて2,000〜2,800文字で執筆してください。`;
+        prompt += `【直前本文】\n${safeLastText}\n\n直前の文章から直接繋げて2,000〜2,800文字で執筆してください。`;
       }
 
       try {
