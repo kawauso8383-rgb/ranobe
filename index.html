@@ -379,7 +379,7 @@
           <button class="btn-action btn-copy" onclick="copyCurrentBlock()">📋 このパートをコピー</button>
           <button class="btn-action btn-retry" id="retryBtn" onclick="retryActiveBlock()">🔄 このパートをリトライ</button>
         </div>
-        <button class="btn-action btn-all-copy" onclick="copyAllBlocks()">📑 第1部〜ここまでの全文を一括コピー</button>
+        <button class="btn-action btn-all-copy" id="allCopyBtn" onclick="copyAllBlocks()">📑 全文を一括コピー</button>
       </div>
 
       <div class="action-group" id="actionArea" style="display: none;">
@@ -438,6 +438,7 @@
       }
     }
 
+    let currentPartNum = 1;
     let blockCount = 0;
     let currentPartIndex = 1;
     let blockDataMap = {};
@@ -531,8 +532,19 @@
       document.getElementById('worldInput').value = localStorage.getItem('d_world') || DEFAULT_WORLD;
       document.getElementById('worldInput').addEventListener('input', e => localStorage.setItem('d_world', e.target.value));
 
-      restoreWritingBlocks();
+      // 既存の旧単一セーブデータがある場合は第1部へマイグレーション
+      migrateOldState();
+
+      // 現在選択中の部の執筆状態をロード
+      loadPartWritingState(currentPartNum);
     };
+
+    function migrateOldState() {
+      const oldSaved = localStorage.getItem('d_saved_blocks');
+      if (oldSaved && !localStorage.getItem('d_saved_part_1')) {
+        localStorage.setItem('d_saved_part_1', oldSaved);
+      }
+    }
 
     function renderParts() {
       const area = document.getElementById('partsListArea');
@@ -557,6 +569,8 @@
     function setupPartDropdown() {
       const select = document.getElementById('partSelect');
       const savedPartNum = localStorage.getItem('d_current_part_num') || "1";
+      currentPartNum = parseInt(savedPartNum, 10);
+
       select.innerHTML = '';
       partsList.forEach(p => {
         const opt = document.createElement('option');
@@ -564,16 +578,70 @@
         opt.innerText = p.title;
         select.appendChild(opt);
       });
-      select.value = savedPartNum;
-      onPartSelectChange();
+      select.value = currentPartNum;
+      updatePartSummary();
     }
 
     function onPartSelectChange() {
-      const pNum = parseInt(document.getElementById('partSelect').value, 10);
-      localStorage.setItem('d_current_part_num', pNum);
-      const pData = partsList.find(p => p.partNum === pNum);
-      if (!pData) return;
-      document.getElementById('selectedPartSummary').innerText = pData.story;
+      // 部を切り替える前に、今の部の執筆状態を確実にセーブ
+      savePartWritingState(currentPartNum);
+
+      currentPartNum = parseInt(document.getElementById('partSelect').value, 10);
+      localStorage.setItem('d_current_part_num', currentPartNum);
+
+      updatePartSummary();
+      loadPartWritingState(currentPartNum);
+    }
+
+    function updatePartSummary() {
+      const pData = partsList.find(p => p.partNum === currentPartNum);
+      if (pData) {
+        document.getElementById('selectedPartSummary').innerText = pData.story;
+      }
+    }
+
+    // 部ごとの保存・読み込み
+    function savePartWritingState(pNum) {
+      const state = {
+        count: blockCount,
+        activeIdx: currentPartIndex,
+        dataMap: blockDataMap,
+        prevMap: prevBlockMap,
+        hasAction: document.getElementById('actionArea').style.display !== 'none',
+        hasNextStory: document.getElementById('nextStoryArea').style.display !== 'none'
+      };
+      localStorage.setItem(`d_saved_part_${pNum}`, JSON.stringify(state));
+    }
+
+    function loadPartWritingState(pNum) {
+      const saved = localStorage.getItem(`d_saved_part_${pNum}`);
+      if (saved) {
+        try {
+          const state = JSON.parse(saved);
+          blockCount = state.count || 0;
+          blockDataMap = state.dataMap || {};
+          prevBlockMap = state.prevMap || {};
+          currentPartIndex = state.activeIdx || blockCount || 1;
+
+          if (blockCount > 0) {
+            renderPartTabs();
+            showActiveBlock(currentPartIndex);
+            document.getElementById('actionArea').style.display = state.hasAction ? 'flex' : 'none';
+            document.getElementById('nextStoryArea').style.display = state.hasNextStory ? 'block' : 'none';
+            return;
+          }
+        } catch (e) {}
+      }
+
+      // 未執筆の部を開いた場合
+      blockCount = 0;
+      currentPartIndex = 1;
+      blockDataMap = {};
+      prevBlockMap = {};
+      renderPartTabs();
+      document.getElementById('activeBlockCard').style.display = 'none';
+      document.getElementById('actionArea').style.display = 'none';
+      document.getElementById('nextStoryArea').style.display = 'none';
     }
 
     function renderCharacters() {
@@ -662,7 +730,6 @@
       return str.substring(0, cutIndex + 1);
     }
 
-    // 徹底的なゴミ文字列除去フィルター
     function cleanGeminiOutput(text) {
       if (!text) return "";
       return text.replace(/\\n/g, "\n")
@@ -745,8 +812,7 @@
       }
       setLoading(true, "💡 編集者が助言を考案中...");
       
-      const pNum = parseInt(document.getElementById('partSelect').value, 10);
-      const currentPart = partsList.find(p => p.partNum === pNum);
+      const currentPart = partsList.find(p => p.partNum === currentPartNum);
 
       const prompt = `あなたはWeb小説『DOPPLE』の専属敏腕編集者です。
 作者からの相談に答えてください。
@@ -777,38 +843,6 @@ ${query}
       }
     }
 
-    // 執筆本文の自動保存と復元ロジック
-    function saveWritingState() {
-      localStorage.setItem('d_saved_blocks', JSON.stringify({
-        count: blockCount,
-        activeIdx: currentPartIndex,
-        dataMap: blockDataMap,
-        prevMap: prevBlockMap,
-        hasAction: document.getElementById('actionArea').style.display !== 'none',
-        hasNextStory: document.getElementById('nextStoryArea').style.display !== 'none'
-      }));
-    }
-
-    function restoreWritingBlocks() {
-      const saved = localStorage.getItem('d_saved_blocks');
-      if (!saved) return;
-      try {
-        const state = JSON.parse(saved);
-        blockCount = state.count || 0;
-        blockDataMap = state.dataMap || {};
-        prevBlockMap = state.prevMap || {};
-        currentPartIndex = state.activeIdx || blockCount || 1;
-
-        if (blockCount > 0) {
-          renderPartTabs();
-          showActiveBlock(currentPartIndex);
-          if (state.hasAction) document.getElementById('actionArea').style.display = 'flex';
-          if (state.hasNextStory) document.getElementById('nextStoryArea').style.display = 'block';
-        }
-      } catch (e) {}
-    }
-
-    // パートタブバーの描画
     function renderPartTabs() {
       const bar = document.getElementById('partTabsBar');
       if (blockCount <= 0) {
@@ -828,7 +862,6 @@ ${query}
       }
     }
 
-    // 指定パートのみを画面に表示
     function showActiveBlock(idx) {
       currentPartIndex = idx;
       renderPartTabs();
@@ -837,40 +870,43 @@ ${query}
       card.style.display = 'block';
 
       const text = blockDataMap[idx] || "";
-      document.getElementById('activeBlockTitle').innerText = `パート ${idx} （${text.length}文字）`;
+      document.getElementById('activeBlockTitle').innerText = `第${currentPartNum}部 パート ${idx} （${text.length}文字）`;
       document.getElementById('activeBlockText').innerText = text;
+      document.getElementById('allCopyBtn').innerText = `📑 第${currentPartNum}部の全パートを一括コピー`;
 
-      saveWritingState();
+      savePartWritingState(currentPartNum);
     }
 
     function onActiveBlockInput() {
       const text = document.getElementById('activeBlockText').innerText;
       blockDataMap[currentPartIndex] = text;
-      document.getElementById('activeBlockTitle').innerText = `パート ${currentPartIndex} （${text.length}文字）`;
-      saveWritingState();
+      document.getElementById('activeBlockTitle').innerText = `第${currentPartNum}部 パート ${currentPartIndex} （${text.length}文字）`;
+      savePartWritingState(currentPartNum);
     }
 
     function copyCurrentBlock() {
       const text = blockDataMap[currentPartIndex] || "";
       navigator.clipboard.writeText(text).then(() => {
-        alert(`パート ${currentPartIndex} をコピーしました！`);
+        alert(`第${currentPartNum}部 パート ${currentPartIndex} をコピーしました！`);
       });
     }
 
-    // 全文一括コピー
     function copyAllBlocks() {
       let allText = "";
       for (let i = 1; i <= blockCount; i++) {
-        allText += `【パート ${i}】\n\n${blockDataMap[i] || ""}\n\n`;
+        allText += `【第${currentPartNum}部 パート ${i}】\n\n${blockDataMap[i] || ""}\n\n`;
       }
       navigator.clipboard.writeText(allText.trim()).then(() => {
-        alert(`全${blockCount}パート（計 ${allText.length} 文字）を一括コピーしました！\nスプレッドシートやメモ帳にそのまま貼り付けられます。`);
+        alert(`第${currentPartNum}部 全${blockCount}パート（計 ${allText.length} 文字）を一括コピーしました！\nスプレッドシート等にそのまま貼り付けられます。`);
       });
     }
 
     async function startGeneration() {
-      const pNum = parseInt(document.getElementById('partSelect').value, 10);
-      const part = partsList.find(p => p.partNum === pNum);
+      const part = partsList.find(p => p.partNum === currentPartNum);
+
+      if (blockCount > 0 && !confirm(`第${currentPartNum}部には既に執筆本文があります。新しく書き直しますか？`)) {
+        return;
+      }
 
       blockCount = 0;
       currentPartIndex = 1;
@@ -879,7 +915,7 @@ ${query}
       renderPartTabs();
       document.getElementById('actionArea').style.display = 'none';
       document.getElementById('nextStoryArea').style.display = 'none';
-      saveWritingState();
+      savePartWritingState(currentPartNum);
 
       setLoading(true, `✍️ 【${part.title}】パート1を執筆中...`);
 
@@ -897,7 +933,7 @@ ${part.story}
 ・設定解説の朗読は厳禁。キャラクターの仕草、息遣い、会話のテンポ、緊迫感で見せること（Show, don't tell）。
 ・影山零の内気さとクロの凶暴さのコントラストを際立たせること。
 ・文章量は【2,000〜2,800文字程度】で執筆してください。
-・解説や前置きは書かず、小説本文のみを出力してください。`;
+・小説本文のみを出力してください。`;
 
       try {
         const text = await callGemini(prompt);
@@ -912,7 +948,7 @@ ${part.story}
         renderPartTabs();
         showActiveBlock(1);
         document.getElementById('actionArea').style.display = 'flex';
-        saveWritingState();
+        savePartWritingState(currentPartNum);
       } catch (err) {
         setLoading(false);
         alert(err.message);
@@ -920,8 +956,7 @@ ${part.story}
     }
 
     async function generateNext(isFinal) {
-      const pNum = parseInt(document.getElementById('partSelect').value, 10);
-      const part = partsList.find(p => p.partNum === pNum);
+      const part = partsList.find(p => p.partNum === currentPartNum);
       const lastText = blockDataMap[blockCount] || "";
       const safeLastText = lastText.length > 1500 ? lastText.substring(lastText.length - 1500) : lastText;
 
@@ -966,7 +1001,7 @@ ${safeLastText}
           document.getElementById('actionArea').style.display = 'none';
           document.getElementById('nextStoryArea').style.display = 'block';
         }
-        saveWritingState();
+        savePartWritingState(currentPartNum);
       } catch (err) {
         setLoading(false);
         alert(err.message);
@@ -974,8 +1009,7 @@ ${safeLastText}
     }
 
     async function retryActiveBlock() {
-      const pNum = parseInt(document.getElementById('partSelect').value, 10);
-      const part = partsList.find(p => p.partNum === pNum);
+      const part = partsList.find(p => p.partNum === currentPartNum);
       const prevText = prevBlockMap[currentPartIndex] || "";
       const safeLastText = prevText.length > 1500 ? prevText.substring(prevText.length - 1500) : prevText;
 
@@ -992,9 +1026,9 @@ ${safeLastText}
         const limited = limitTo3000Chars(text);
         blockDataMap[currentPartIndex] = limited;
         document.getElementById('activeBlockText').innerText = limited;
-        document.getElementById('activeBlockTitle').innerText = `パート ${currentPartIndex} （${limited.length}文字）`;
+        document.getElementById('activeBlockTitle').innerText = `第${currentPartNum}部 パート ${currentPartIndex} （${limited.length}文字）`;
         document.getElementById('retryBtn').disabled = false;
-        saveWritingState();
+        savePartWritingState(currentPartNum);
       } catch (err) {
         document.getElementById('retryBtn').disabled = false;
         alert(err.message);
@@ -1002,23 +1036,17 @@ ${safeLastText}
     }
 
     function goToNextPart() {
-      const select = document.getElementById('partSelect');
-      const current = parseInt(select.value, 10);
-      if (current < partsList.length) {
-        select.value = current + 1;
+      // 次の部に進む前に現在の部を確実に保存
+      savePartWritingState(currentPartNum);
+
+      const nextNum = currentPartNum + 1;
+      if (nextNum <= partsList.length) {
+        document.getElementById('partSelect').value = nextNum;
         onPartSelectChange();
-        blockCount = 0;
-        currentPartIndex = 1;
-        blockDataMap = {};
-        prevBlockMap = {};
-        renderPartTabs();
-        document.getElementById('actionArea').style.display = 'none';
-        document.getElementById('nextStoryArea').style.display = 'none';
-        saveWritingState();
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        alert(`第${current + 1}部の準備が完了しました！`);
+        alert(`第${currentPartNum}部の本文を保存し、第${nextNum}部の準備が完了しました！`);
       } else {
-        alert('全5部が完結しました！');
+        alert('全5部が完結しました！お疲れ様でした！');
       }
     }
   </script>
