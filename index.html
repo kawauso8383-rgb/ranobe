@@ -126,13 +126,7 @@
       border: 1px solid var(--border);
       margin-bottom: 12px;
     }
-    .part-title {
-      font-weight: 800;
-      font-size: 0.88rem;
-      color: #818cf8;
-      margin-bottom: 6px;
-    }
-    .char-header {
+    .part-header, .char-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -330,11 +324,12 @@
       </div>
     </div>
 
-    <!-- 3. 🗺️ 構成タブ（第1部〜第5部） -->
+    <!-- 3. 🗺️ 構成タブ -->
     <div id="tab-story" class="tab-content">
-      <div class="card" style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
-        💡 第1部〜第5部の大まかなストーリー展開です。ここを書き換えるとAIが自動で反映します。
+      <div class="card" style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px; line-height:1.6;">
+        💡 ストーリーの各部構成です。何部構成でも自由に増やしたり減らしたりできます。
       </div>
+      <button class="btn-action" style="background:#312e81; color:#c7d2fe; width:100%; margin-bottom:12px; font-weight:800; padding:12px; border-radius:12px;" onclick="addNewPart()">➕ 新しい部（章）を追加</button>
       <div id="partsListArea"></div>
     </div>
 
@@ -367,10 +362,8 @@
         <div id="loading">⚡ AIが構成を読み取り執筆中...（2,000〜2,800字）</div>
       </div>
 
-      <!-- パート切り替えタブバー -->
       <div class="part-tabs-container" id="partTabsBar" style="display: none;"></div>
 
-      <!-- 単一アクティブパート表示カード -->
       <div id="activeBlockCard" class="block-card" style="display: none;">
         <div class="block-header">
           <div class="block-title" id="activeBlockTitle">パート 1</div>
@@ -542,11 +535,21 @@
         const div = document.createElement('div');
         div.className = 'part-card';
         div.innerHTML = `
-          <div class="part-title">${p.title}</div>
-          <textarea style="height:140px;" onchange="updatePartStory(${idx}, this.value)">${escapeHtml(p.story)}</textarea>
+          <div class="part-header">
+            <input type="text" style="font-weight:800; font-size:0.88rem; color:#818cf8; width:75%; padding:4px 8px;" value="${escapeHtml(p.title)}" onchange="updatePartTitle(${idx}, this.value)">
+            <button style="background:none; border:none; color:#f87171; cursor:pointer; font-size:0.8rem;" onclick="deletePart(${idx})">🗑️ 削除</button>
+          </div>
+          <div class="field-label">大まかな展開プロット</div>
+          <textarea style="height:120px;" onchange="updatePartStory(${idx}, this.value)">${escapeHtml(p.story)}</textarea>
         `;
         area.appendChild(div);
       });
+    }
+
+    function updatePartTitle(idx, val) {
+      partsList[idx].title = val;
+      localStorage.setItem('d_parts_json', JSON.stringify(partsList));
+      setupPartDropdown();
     }
 
     function updatePartStory(idx, val) {
@@ -555,10 +558,46 @@
       onPartSelectChange();
     }
 
+    function addNewPart() {
+      const newNum = partsList.length + 1;
+      partsList.push({
+        partNum: newNum,
+        title: `第${newNum}部：新しい展開`,
+        story: `・第${newNum}部のプロットを入力してください。`
+      });
+      // 番号を再採番
+      reindexParts();
+      localStorage.setItem('d_parts_json', JSON.stringify(partsList));
+      renderParts();
+      setupPartDropdown();
+    }
+
+    function deletePart(idx) {
+      if (partsList.length <= 1) {
+        alert("これ以上部は削除できません（最低1部は必要です）。");
+        return;
+      }
+      if (confirm(`「${partsList[idx].title}」を削除しますか？`)) {
+        partsList.splice(idx, 1);
+        reindexParts();
+        localStorage.setItem('d_parts_json', JSON.stringify(partsList));
+        if (currentPartNum > partsList.length) currentPartNum = partsList.length;
+        renderParts();
+        setupPartDropdown();
+      }
+    }
+
+    function reindexParts() {
+      partsList.forEach((p, i) => {
+        p.partNum = i + 1;
+      });
+    }
+
     function setupPartDropdown() {
       const select = document.getElementById('partSelect');
       const savedPartNum = localStorage.getItem('d_current_part_num') || "1";
       currentPartNum = parseInt(savedPartNum, 10);
+      if (currentPartNum > partsList.length) currentPartNum = 1;
 
       select.innerHTML = '';
       partsList.forEach(p => {
@@ -573,10 +612,8 @@
 
     function onPartSelectChange() {
       savePartWritingState(currentPartNum);
-
       currentPartNum = parseInt(document.getElementById('partSelect').value, 10);
       localStorage.setItem('d_current_part_num', currentPartNum);
-
       updatePartSummary();
       loadPartWritingState(currentPartNum);
     }
@@ -694,9 +731,8 @@
       return `${charsText}\n\n【世界観・能力ルール】\n${world}`;
     }
 
-    // 全5部の全ロードマップをまとめる関数
     function getFullStoryRoadmap() {
-      let roadmap = "【作品全体の全5部ロードマップ（全体構造）】\n";
+      let roadmap = `【作品全体の全${partsList.length}部ロードマップ（全体構造）】\n`;
       partsList.forEach(p => {
         roadmap += `◆ ${p.title}\n${p.story}\n\n`;
       });
@@ -900,7 +936,6 @@ ${query}
       });
     }
 
-    // パート1新規執筆（ネタバレ防止ガード付き）
     async function startGeneration() {
       const part = partsList.find(p => p.partNum === currentPartNum);
 
@@ -930,7 +965,7 @@ ${getFullStoryRoadmap()}
 ${part.story}
 
 【ネタバレ防止と情報開示の鉄則（最重要ガード）】
-1. あなたは第5部までの結末・全貌を知っていますが、**【第${currentPartNum}部】より先の部で明かされる秘密・正体・黒幕・結末を地の文やセリフで絶対にネタバレ（明言）してはなりません**。
+1. あなたは全${partsList.length}部の全貌を知っていますが、**【第${currentPartNum}部】より先の部で明かされる秘密・正体・黒幕・結末を地の文やセリフで絶対にネタバレ（明言）してはなりません**。
 2. 後の部で明かされる真相（例：真の目的、黒幕の正体、三人目の人格など）は、現時点ではあくまで「微かな違和感」「不可解な謎」「さりげない伏線」として匂わせる程度に留めてください。
 3. 読者および登場人物の視点に合わせて、現在進行中の【第${currentPartNum}部】の出来事と緊迫感に集中して描写してください。
 
@@ -960,7 +995,6 @@ ${part.story}
       }
     }
 
-    // 続きの執筆（ネタバレ防止ガード付き）
     async function generateNext(isFinal) {
       const part = partsList.find(p => p.partNum === currentPartNum);
 
@@ -999,7 +1033,7 @@ ${part.story}
 ${safeLastText}
 
 【ネタバレ防止と情報開示の鉄則（最重要ガード）】
-1. あなたは第5部までの全貌を知っていますが、**【第${currentPartNum}部】より先の部で明かされる秘密・正体・黒幕の真意を地の文やセリフで絶対に先出しネタバレしてはなりません**。
+1. あなたは全${partsList.length}部の全貌を知っていますが、**【第${currentPartNum}部】より先の部で明かされる秘密・正体・黒幕の真意を地の文やセリフで絶対に先出しネタバレしてはなりません**。
 2. 後の部で明かされる真相は、現時点ではあくまで「微かな違和感」「伏線」として匂わせる程度に留めてください。
 3. 現在進行中の【第${currentPartNum}部】のドラマと迫力に集中して描写してください。
 
@@ -1033,7 +1067,6 @@ ${safeLastText}
       }
     }
 
-    // パートリトライ（ネタバレ防止ガード付き）
     async function retryActiveBlock() {
       const part = partsList.find(p => p.partNum === currentPartNum);
       
@@ -1077,7 +1110,7 @@ ${safeLastText}
         window.scrollTo({ top: 0, behavior: 'smooth' });
         alert(`第${currentPartNum}部の本文を保存し、第${nextNum}部の準備が完了しました！`);
       } else {
-        alert('全5部が完結しました！お疲れ様でした！');
+        alert('全構成が完結しました！お疲れ様でした！');
       }
     }
   </script>
