@@ -25,7 +25,6 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      /* iPhoneのノッチ・Dynamic Island・ホームバーの余白を完全考慮 */
       padding-top: calc(env(safe-area-inset-top, 20px) + 10px);
       padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 75px);
       padding-left: 12px;
@@ -59,13 +58,13 @@
       gap: 6px;
       letter-spacing: 0.5px;
     }
-    .header-actions { display: flex; align-items: center; gap: 5px; }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
     .btn-header {
       font-size: 0.68rem;
       background: rgba(255, 255, 255, 0.1);
       border: 1px solid var(--border);
       color: #cbd5e1;
-      padding: 4px 7px;
+      padding: 4px 8px;
       border-radius: 8px;
       cursor: pointer;
     }
@@ -74,7 +73,7 @@
       background: rgba(99, 102, 241, 0.25);
       border: 1px solid var(--accent);
       color: #c7d2fe;
-      padding: 3px 7px;
+      padding: 3px 8px;
       border-radius: 20px;
       font-weight: 600;
     }
@@ -312,7 +311,6 @@
     <div class="app-header">
       <div class="app-title">⚡ DOPPLE STUDIO</div>
       <div class="header-actions">
-        <button class="btn-header" onclick="backupRestoreData()">📦 移行</button>
         <button class="btn-header" onclick="promptApiKey()">🔑 API</button>
         <div class="badge" id="currentTabName">✍️ 執筆</div>
       </div>
@@ -438,33 +436,6 @@
       if (input !== null && input.trim() !== "") {
         localStorage.setItem('d_gemini_api_key', input.trim());
         alert("APIキーを保存しました！");
-      }
-    }
-
-    // Safariとホーム画面アプリ間のデータ移行ツール
-    function backupRestoreData() {
-      const choice = prompt("【データ移行】\n1: 現在の全データをコピー（バックアップ）\n2: データを貼り付けて復元\n「1」または「2」を入力してください：");
-      if (choice === "1") {
-        const dump = {};
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k.startsWith('d_')) dump[k] = localStorage.getItem(k);
-        }
-        navigator.clipboard.writeText(JSON.stringify(dump)).then(() => {
-          alert("全データをクリップボードにコピーしました！\nホーム画面に追加したアプリ側で「📦 移行」を開いて「2」を選び、貼り付けてください。");
-        });
-      } else if (choice === "2") {
-        const input = prompt("コピーしたバックアップ文字列を貼り付けてください：");
-        if (input) {
-          try {
-            const data = JSON.parse(input);
-            for (let k in data) localStorage.setItem(k, data[k]);
-            alert("データを復元しました！アプリを再読み込みします。");
-            location.reload();
-          } catch (e) {
-            alert("データの復元に失敗しました。文字列が正しいかご確認ください。");
-          }
-        }
       }
     }
 
