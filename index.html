@@ -55,11 +55,7 @@
       gap: 6px;
       letter-spacing: 0.5px;
     }
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
     .btn-key {
       font-size: 0.7rem;
       background: rgba(255, 255, 255, 0.1);
@@ -185,22 +181,48 @@
       justify-content: center;
     }
 
+    /* パート切り替えタブバー */
+    .part-tabs-container {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .part-tab-btn {
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .part-tab-btn.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
     .block-card {
       background: var(--card-bg);
       border-radius: 16px;
-      padding: 12px;
+      padding: 14px;
       border: 1px solid var(--border);
-      margin-top: 12px;
+      margin-top: 10px;
     }
     .block-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
     .block-title {
       font-weight: 800;
-      font-size: 0.88rem;
+      font-size: 0.9rem;
       color: #a5b4fc;
     }
     .block-text {
@@ -210,8 +232,10 @@
       border-radius: 10px;
       padding: 12px;
       font-size: 0.88rem;
-      line-height: 1.7;
-      min-height: 120px;
+      line-height: 1.75;
+      min-height: 260px;
+      max-height: 55vh;
+      overflow-y: auto;
       outline: none;
       white-space: pre-wrap;
     }
@@ -234,6 +258,7 @@
     .btn-next { background: linear-gradient(135deg, #d97706, #f59e0b); color: white; padding: 12px; }
     .btn-finish { background: linear-gradient(135deg, #7c3aed, #8b5cf6); color: white; padding: 12px; }
     .btn-reset { background: linear-gradient(135deg, #0284c7, #38bdf8); color: white; padding: 12px; margin-top: 8px; }
+    .btn-all-copy { background: #1e1b4b; border: 1px solid var(--accent); color: #c7d2fe; padding: 10px; margin-top: 6px; }
 
     #loading {
       display: none;
@@ -307,7 +332,7 @@
     <!-- 3. 🗺️ 構成タブ（第1部〜第5部） -->
     <div id="tab-story" class="tab-content">
       <div class="card" style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
-        💡 第1部〜第5部の大まかなストーリー展開です。大雑把に書いておくだけで、AIが意図を汲み取って執筆します。
+        💡 第1部〜第5部の大まかなストーリー展開です。ここを書き換えるとAIが自動で反映します。
       </div>
       <div id="partsListArea"></div>
     </div>
@@ -326,25 +351,39 @@
     <div id="tab-write" class="tab-content active">
       <div class="card">
         <div class="card-title">
-          <span>📖 執筆するストーリーの選択</span>
+          <span>📖 執筆ストーリー選択</span>
         </div>
         
         <select id="partSelect" onchange="onPartSelectChange()">
         </select>
 
-        <div style="margin-top:10px; font-size:0.78rem; color:var(--text-muted);">
+        <div style="margin-top:8px; font-size:0.75rem; color:var(--text-muted);">
           【この部の大まかな展開メモ】
         </div>
-        <div id="selectedPartSummary" style="background:#090e17; border:1px solid var(--border); border-radius:10px; padding:10px; font-size:0.82rem; line-height:1.6; margin-top:4px; max-height:100px; overflow-y:auto; color:#cbd5e1;"></div>
+        <div id="selectedPartSummary" style="background:#090e17; border:1px solid var(--border); border-radius:10px; padding:8px; font-size:0.8rem; line-height:1.5; margin-top:4px; max-height:80px; overflow-y:auto; color:#cbd5e1;"></div>
 
         <button class="btn-main" id="startBtn" onclick="startGeneration()">⚡ この部から本文の執筆を開始する</button>
         <div id="loading">⚡ AIが構成を読み取り執筆中...（2,000〜2,800字）</div>
       </div>
 
-      <div id="blocksArea"></div>
+      <!-- パート切り替えタブバー -->
+      <div class="part-tabs-container" id="partTabsBar" style="display: none;"></div>
+
+      <!-- 単一アクティブパート表示カード -->
+      <div id="activeBlockCard" class="block-card" style="display: none;">
+        <div class="block-header">
+          <div class="block-title" id="activeBlockTitle">パート 1</div>
+        </div>
+        <div class="block-text" id="activeBlockText" contenteditable="true" oninput="onActiveBlockInput()"></div>
+        <div class="btn-grid">
+          <button class="btn-action btn-copy" onclick="copyCurrentBlock()">📋 このパートをコピー</button>
+          <button class="btn-action btn-retry" id="retryBtn" onclick="retryActiveBlock()">🔄 このパートをリトライ</button>
+        </div>
+        <button class="btn-action btn-all-copy" onclick="copyAllBlocks()">📑 第1部〜ここまでの全文を一括コピー</button>
+      </div>
 
       <div class="action-group" id="actionArea" style="display: none;">
-        <button class="btn-action btn-next" id="nextBtn" onclick="generateNext(false)">⚡ 続きを展開して執筆する</button>
+        <button class="btn-action btn-next" id="nextBtn" onclick="generateNext(false)">⚡ 次のパートを展開して執筆する</button>
         <button class="btn-action btn-finish" id="finishBtn" onclick="generateNext(true)">🏁 この部のクライマックスを描いて完結</button>
       </div>
 
@@ -379,11 +418,10 @@
   </div>
 
   <script>
-    // GitHub漏洩防止：コード内にキーを直書きせずブラウザのlocalStorageで安全管理
     function getApiKey() {
       let key = localStorage.getItem('d_gemini_api_key');
       if (!key) {
-        key = prompt("Gemini APIキーを入力してください（お使いのブラウザにのみ安全に保存されます）：");
+        key = prompt("Gemini APIキーを入力してください：");
         if (key && key.trim() !== "") {
           localStorage.setItem('d_gemini_api_key', key.trim());
         }
@@ -401,6 +439,7 @@
     }
 
     let blockCount = 0;
+    let currentPartIndex = 1;
     let blockDataMap = {};
     let prevBlockMap = {};
 
@@ -491,6 +530,8 @@
 
       document.getElementById('worldInput').value = localStorage.getItem('d_world') || DEFAULT_WORLD;
       document.getElementById('worldInput').addEventListener('input', e => localStorage.setItem('d_world', e.target.value));
+
+      restoreWritingBlocks();
     };
 
     function renderParts() {
@@ -515,7 +556,7 @@
 
     function setupPartDropdown() {
       const select = document.getElementById('partSelect');
-      const currentVal = select.value || "1";
+      const savedPartNum = localStorage.getItem('d_current_part_num') || "1";
       select.innerHTML = '';
       partsList.forEach(p => {
         const opt = document.createElement('option');
@@ -523,12 +564,13 @@
         opt.innerText = p.title;
         select.appendChild(opt);
       });
-      select.value = currentVal;
+      select.value = savedPartNum;
       onPartSelectChange();
     }
 
     function onPartSelectChange() {
       const pNum = parseInt(document.getElementById('partSelect').value, 10);
+      localStorage.setItem('d_current_part_num', pNum);
       const pData = partsList.find(p => p.partNum === pNum);
       if (!pData) return;
       document.getElementById('selectedPartSummary').innerText = pData.story;
@@ -604,6 +646,7 @@
     function switchTab(tabId, tabName) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      
       document.getElementById('tab-' + tabId).classList.add('active');
       document.getElementById('currentTabName').innerText = tabName;
       const navMap = { write: 0, story: 1, characters: 2, world: 3, consult: 4 };
@@ -619,9 +662,23 @@
       return str.substring(0, cutIndex + 1);
     }
 
+    // 徹底的なゴミ文字列除去フィルター
+    function cleanGeminiOutput(text) {
+      if (!text) return "";
+      return text.replace(/\\n/g, "\n")
+                 .replace(/\\"/g, '"')
+                 .replace(/",\s*"type"\s*:\s*"text"[\s\S]*/, "")
+                 .replace(/"type"\s*:\s*"text"[\s\S]*/, "")
+                 .replace(/\{\s*"totalTokenCount"[\s\S]*/, "")
+                 .replace(/\{\s*"usageMetadata"[\s\S]*/, "")
+                 .replace(/```markdown/gi, "")
+                 .replace(/```/g, "")
+                 .trim();
+    }
+
     async function callGemini(promptText) {
       const apiKey = getApiKey();
-      if (!apiKey) throw new Error("APIキーが設定されていません。画面上部の「🔑 API設定」から入力してください。");
+      if (!apiKey) throw new Error("APIキーが設定されていません。画面右上の「🔑 API設定」から入力してください。");
 
       const url = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
       const payload = {
@@ -663,12 +720,7 @@
       }
       if (!text) throw new Error("本文を取得できませんでした。");
 
-      return text.replace(/\\n/g, "\n")
-                 .replace(/\\"/g, '"')
-                 .replace(/",\s*"type"\s*:\s*"text"[\s\S]*/, "")
-                 .replace(/\{\s*"totalTokenCount"[\s\S]*/, "")
-                 .replace(/\{\s*"usageMetadata"[\s\S]*/, "")
-                 .trim();
+      return cleanGeminiOutput(text);
     }
 
     function setLoading(isLoading, text) {
@@ -725,42 +777,142 @@ ${query}
       }
     }
 
+    // 執筆本文の自動保存と復元ロジック
+    function saveWritingState() {
+      localStorage.setItem('d_saved_blocks', JSON.stringify({
+        count: blockCount,
+        activeIdx: currentPartIndex,
+        dataMap: blockDataMap,
+        prevMap: prevBlockMap,
+        hasAction: document.getElementById('actionArea').style.display !== 'none',
+        hasNextStory: document.getElementById('nextStoryArea').style.display !== 'none'
+      }));
+    }
+
+    function restoreWritingBlocks() {
+      const saved = localStorage.getItem('d_saved_blocks');
+      if (!saved) return;
+      try {
+        const state = JSON.parse(saved);
+        blockCount = state.count || 0;
+        blockDataMap = state.dataMap || {};
+        prevBlockMap = state.prevMap || {};
+        currentPartIndex = state.activeIdx || blockCount || 1;
+
+        if (blockCount > 0) {
+          renderPartTabs();
+          showActiveBlock(currentPartIndex);
+          if (state.hasAction) document.getElementById('actionArea').style.display = 'flex';
+          if (state.hasNextStory) document.getElementById('nextStoryArea').style.display = 'block';
+        }
+      } catch (e) {}
+    }
+
+    // パートタブバーの描画
+    function renderPartTabs() {
+      const bar = document.getElementById('partTabsBar');
+      if (blockCount <= 0) {
+        bar.style.display = 'none';
+        document.getElementById('activeBlockCard').style.display = 'none';
+        return;
+      }
+
+      bar.innerHTML = '';
+      bar.style.display = 'flex';
+      for (let i = 1; i <= blockCount; i++) {
+        const btn = document.createElement('button');
+        btn.className = `part-tab-btn ${i === currentPartIndex ? 'active' : ''}`;
+        btn.innerText = `パート ${i}`;
+        btn.onclick = () => showActiveBlock(i);
+        bar.appendChild(btn);
+      }
+    }
+
+    // 指定パートのみを画面に表示
+    function showActiveBlock(idx) {
+      currentPartIndex = idx;
+      renderPartTabs();
+
+      const card = document.getElementById('activeBlockCard');
+      card.style.display = 'block';
+
+      const text = blockDataMap[idx] || "";
+      document.getElementById('activeBlockTitle').innerText = `パート ${idx} （${text.length}文字）`;
+      document.getElementById('activeBlockText').innerText = text;
+
+      saveWritingState();
+    }
+
+    function onActiveBlockInput() {
+      const text = document.getElementById('activeBlockText').innerText;
+      blockDataMap[currentPartIndex] = text;
+      document.getElementById('activeBlockTitle').innerText = `パート ${currentPartIndex} （${text.length}文字）`;
+      saveWritingState();
+    }
+
+    function copyCurrentBlock() {
+      const text = blockDataMap[currentPartIndex] || "";
+      navigator.clipboard.writeText(text).then(() => {
+        alert(`パート ${currentPartIndex} をコピーしました！`);
+      });
+    }
+
+    // 全文一括コピー
+    function copyAllBlocks() {
+      let allText = "";
+      for (let i = 1; i <= blockCount; i++) {
+        allText += `【パート ${i}】\n\n${blockDataMap[i] || ""}\n\n`;
+      }
+      navigator.clipboard.writeText(allText.trim()).then(() => {
+        alert(`全${blockCount}パート（計 ${allText.length} 文字）を一括コピーしました！\nスプレッドシートやメモ帳にそのまま貼り付けられます。`);
+      });
+    }
+
     async function startGeneration() {
       const pNum = parseInt(document.getElementById('partSelect').value, 10);
       const part = partsList.find(p => p.partNum === pNum);
 
-      document.getElementById('blocksArea').innerHTML = '';
-      document.getElementById('actionArea').style.display = 'none';
-      document.getElementById('nextStoryArea').style.display = 'none';
       blockCount = 0;
+      currentPartIndex = 1;
       blockDataMap = {};
       prevBlockMap = {};
+      renderPartTabs();
+      document.getElementById('actionArea').style.display = 'none';
+      document.getElementById('nextStoryArea').style.display = 'none';
+      saveWritingState();
 
-      setLoading(true, `✍️ 【${part.title}】を執筆中...`);
+      setLoading(true, `✍️ 【${part.title}】パート1を執筆中...`);
 
       const prompt = `あなたはプロのライトノベル作家です。
-以下の作品設定と、作者が構想した【この部の大まかな展開】をしっかりと読み取って、『DOPPLE』の本文を執筆してください。
+以下の設定と展開から『DOPPLE』の本文を執筆してください。
 
 【作品設定】
 ${getAllContext()}
 
-【今回執筆するストーリー：${part.title}】
-作者が構想した展開：
+【ストーリー：${part.title}】
 ${part.story}
 
 【執筆ルール（最重要）】
-・この大まかな展開の「序盤〜導入シーン」から執筆を開始してください。
-・設定を長々と説明する「設定解説文」は厳禁。キャラクターの仕草、息遣い、会話のテンポ、緊迫感で見せること（Show, don't tell）。
+・この展開の「序盤〜導入シーン」から執筆を開始してください。
+・設定解説の朗読は厳禁。キャラクターの仕草、息遣い、会話のテンポ、緊迫感で見せること（Show, don't tell）。
 ・影山零の内気さとクロの凶暴さのコントラストを際立たせること。
 ・文章量は【2,000〜2,800文字程度】で執筆してください。
-・小説本文のみを出力してください。`;
+・解説や前置きは書かず、小説本文のみを出力してください。`;
 
       try {
         const text = await callGemini(prompt);
         const limited = limitTo3000Chars(text);
         setLoading(false);
-        addBlockToUI(limited, "");
+
+        blockCount = 1;
+        currentPartIndex = 1;
+        blockDataMap[1] = limited;
+        prevBlockMap[1] = "";
+
+        renderPartTabs();
+        showActiveBlock(1);
         document.getElementById('actionArea').style.display = 'flex';
+        saveWritingState();
       } catch (err) {
         setLoading(false);
         alert(err.message);
@@ -770,15 +922,14 @@ ${part.story}
     async function generateNext(isFinal) {
       const pNum = parseInt(document.getElementById('partSelect').value, 10);
       const part = partsList.find(p => p.partNum === pNum);
-      const lastTextBox = document.getElementById('text-box-' + blockCount);
-      const lastText = lastTextBox ? lastTextBox.innerText : (blockDataMap[blockCount] || "");
+      const lastText = blockDataMap[blockCount] || "";
       const safeLastText = lastText.length > 1500 ? lastText.substring(lastText.length - 1500) : lastText;
 
-      setLoading(true, isFinal ? `🏁 【${part.title}】完結パートを執筆中...` : `✍️ 続きを展開して執筆中...`);
+      setLoading(true, isFinal ? `🏁 【${part.title}】完結パートを執筆中...` : `✍️ パート ${blockCount + 1} を執筆中...`);
 
       let endingInstruction = "直前の文章から自然につなげて、この部の大まかな展開の次のシーンへと物語を進めてください。";
       if (isFinal) {
-        endingInstruction = `直前の文章からつなげて、この部の大まかな展開のラスト（クライマックス・決着）を描ききり、綺麗に完結させてください。`;
+        endingInstruction = `直前の文章からつなげて、この部の大まかな展開の決着・クライマックスを描ききり、綺麗に完結させてください。`;
       }
 
       const prompt = `あなたはプロのライトノベル作家です。『DOPPLE』の続きを執筆してください。
@@ -786,7 +937,7 @@ ${part.story}
 【作品設定】
 ${getAllContext()}
 
-【この部の大まかな展開：${part.title}】
+【展開：${part.title}】
 ${part.story}
 
 【直前の本文（抜粋）】
@@ -794,7 +945,7 @@ ${safeLastText}
 
 【執筆指示】
 ・${endingInstruction}
-・設定説明に終始せず、キャラクターの行動と会話を主体に描写すること。
+・設定説明に終始せず、キャラクターの生々しい行動と会話を主体に描写すること。
 ・文章量は【2,000〜2,800文字程度】で執筆してください。
 ・小説本文のみを出力してください。`;
 
@@ -802,84 +953,50 @@ ${safeLastText}
         const text = await callGemini(prompt);
         const limited = limitTo3000Chars(text);
         setLoading(false);
-        addBlockToUI(limited, lastText);
+
+        blockCount++;
+        currentPartIndex = blockCount;
+        blockDataMap[blockCount] = limited;
+        prevBlockMap[blockCount] = lastText;
+
+        renderPartTabs();
+        showActiveBlock(blockCount);
+
         if (isFinal) {
           document.getElementById('actionArea').style.display = 'none';
           document.getElementById('nextStoryArea').style.display = 'block';
         }
+        saveWritingState();
       } catch (err) {
         setLoading(false);
         alert(err.message);
       }
     }
 
-    function addBlockToUI(text, prevText) {
-      blockCount++;
-      blockDataMap[blockCount] = text;
-      prevBlockMap[blockCount] = prevText;
-
-      const container = document.createElement('div');
-      container.className = 'block-card';
-      container.id = 'block-' + blockCount;
-
-      container.innerHTML = `
-        <div class="block-header">
-          <div class="block-title" id="title-${blockCount}">パート ${blockCount} （${text.length}文字）</div>
-        </div>
-        <div class="block-text" id="text-box-${blockCount}" contenteditable="true" oninput="updateCharCount(${blockCount})"></div>
-        <div class="btn-grid">
-          <button class="btn-action btn-copy" onclick="copyText(${blockCount})">📋 コピー</button>
-          <button class="btn-action btn-retry" id="retry-btn-${blockCount}" onclick="retryBlock(${blockCount})">🔄 リトライ</button>
-        </div>
-      `;
-
-      document.getElementById('blocksArea').appendChild(container);
-      document.getElementById('text-box-' + blockCount).innerText = text;
-      container.scrollIntoView({ behavior: 'smooth' });
-    }
-
-    function updateCharCount(index) {
-      const textBox = document.getElementById('text-box-' + index);
-      const titleBox = document.getElementById('title-' + index);
-      if (textBox && titleBox) {
-        titleBox.innerText = `パート ${index} （${textBox.innerText.length}文字）`;
-      }
-    }
-
-    function copyText(index) {
-      const text = document.getElementById('text-box-' + index).innerText;
-      navigator.clipboard.writeText(text).then(() => {
-        alert(`パート ${index} の本文をコピーしました！`);
-      });
-    }
-
-    async function retryBlock(index) {
+    async function retryActiveBlock() {
       const pNum = parseInt(document.getElementById('partSelect').value, 10);
       const part = partsList.find(p => p.partNum === pNum);
-      const prevText = prevBlockMap[index] || "";
+      const prevText = prevBlockMap[currentPartIndex] || "";
       const safeLastText = prevText.length > 1500 ? prevText.substring(prevText.length - 1500) : prevText;
 
-      const retryBtn = document.getElementById('retry-btn-' + index);
-      const textBox = document.getElementById('text-box-' + index);
-      const titleBox = document.getElementById('title-' + index);
-
-      retryBtn.disabled = true;
-      textBox.innerText = "🔄 AIが再執筆中...";
+      document.getElementById('retryBtn').disabled = true;
+      document.getElementById('activeBlockText').innerText = "🔄 AIが再執筆中...";
 
       let prompt = `あなたはプロのライトノベル作家です。『DOPPLE』【${part.title}】の本文を執筆してください。\n\n【設定】\n${getAllContext()}\n\n【展開】\n${part.story}`;
-      if (index > 1) {
+      if (currentPartIndex > 1) {
         prompt += `\n\n【直前本文】\n${safeLastText}\n\n続きを展開してください。`;
       }
 
       try {
         const text = await callGemini(prompt);
         const limited = limitTo3000Chars(text);
-        blockDataMap[index] = limited;
-        textBox.innerText = limited;
-        titleBox.innerText = `パート ${index} （${limited.length}文字）`;
-        retryBtn.disabled = false;
+        blockDataMap[currentPartIndex] = limited;
+        document.getElementById('activeBlockText').innerText = limited;
+        document.getElementById('activeBlockTitle').innerText = `パート ${currentPartIndex} （${limited.length}文字）`;
+        document.getElementById('retryBtn').disabled = false;
+        saveWritingState();
       } catch (err) {
-        retryBtn.disabled = false;
+        document.getElementById('retryBtn').disabled = false;
         alert(err.message);
       }
     }
@@ -890,9 +1007,14 @@ ${safeLastText}
       if (current < partsList.length) {
         select.value = current + 1;
         onPartSelectChange();
-        document.getElementById('blocksArea').innerHTML = '';
+        blockCount = 0;
+        currentPartIndex = 1;
+        blockDataMap = {};
+        prevBlockMap = {};
+        renderPartTabs();
         document.getElementById('actionArea').style.display = 'none';
         document.getElementById('nextStoryArea').style.display = 'none';
+        saveWritingState();
         window.scrollTo({ top: 0, behavior: 'smooth' });
         alert(`第${current + 1}部の準備が完了しました！`);
       } else {
