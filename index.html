@@ -181,7 +181,6 @@
       justify-content: center;
     }
 
-    /* パート切り替えタブバー */
     .part-tabs-container {
       display: flex;
       gap: 6px;
@@ -362,7 +361,7 @@
         </div>
         <div id="selectedPartSummary" style="background:#090e17; border:1px solid var(--border); border-radius:10px; padding:8px; font-size:0.8rem; line-height:1.5; margin-top:4px; max-height:80px; overflow-y:auto; color:#cbd5e1;"></div>
 
-        <button class="btn-main" id="startBtn" onclick="startGeneration()">⚡ この部から本文の執筆を開始する</button>
+        <button class="btn-main" id="startBtn" onclick="startGeneration()">⚡ パート1から新規に執筆する</button>
         <div id="loading">⚡ AIが構成を読み取り執筆中...（2,000〜2,800字）</div>
       </div>
 
@@ -383,7 +382,7 @@
       </div>
 
       <div class="action-group" id="actionArea" style="display: none;">
-        <button class="btn-action btn-next" id="nextBtn" onclick="generateNext(false)">⚡ 次のパートを展開して執筆する</button>
+        <button class="btn-action btn-next" id="nextBtn" onclick="generateNext(false)">⚡ 最新パートから続きを執筆する</button>
         <button class="btn-action btn-finish" id="finishBtn" onclick="generateNext(true)">🏁 この部のクライマックスを描いて完結</button>
       </div>
 
@@ -442,7 +441,6 @@
     let blockCount = 0;
     let currentPartIndex = 1;
     let blockDataMap = {};
-    let prevBlockMap = {};
 
     const INITIAL_PARTS = [
       {
@@ -532,19 +530,8 @@
       document.getElementById('worldInput').value = localStorage.getItem('d_world') || DEFAULT_WORLD;
       document.getElementById('worldInput').addEventListener('input', e => localStorage.setItem('d_world', e.target.value));
 
-      // 既存の旧単一セーブデータがある場合は第1部へマイグレーション
-      migrateOldState();
-
-      // 現在選択中の部の執筆状態をロード
       loadPartWritingState(currentPartNum);
     };
-
-    function migrateOldState() {
-      const oldSaved = localStorage.getItem('d_saved_blocks');
-      if (oldSaved && !localStorage.getItem('d_saved_part_1')) {
-        localStorage.setItem('d_saved_part_1', oldSaved);
-      }
-    }
 
     function renderParts() {
       const area = document.getElementById('partsListArea');
@@ -583,7 +570,6 @@
     }
 
     function onPartSelectChange() {
-      // 部を切り替える前に、今の部の執筆状態を確実にセーブ
       savePartWritingState(currentPartNum);
 
       currentPartNum = parseInt(document.getElementById('partSelect').value, 10);
@@ -600,13 +586,11 @@
       }
     }
 
-    // 部ごとの保存・読み込み
     function savePartWritingState(pNum) {
       const state = {
         count: blockCount,
         activeIdx: currentPartIndex,
         dataMap: blockDataMap,
-        prevMap: prevBlockMap,
         hasAction: document.getElementById('actionArea').style.display !== 'none',
         hasNextStory: document.getElementById('nextStoryArea').style.display !== 'none'
       };
@@ -620,7 +604,6 @@
           const state = JSON.parse(saved);
           blockCount = state.count || 0;
           blockDataMap = state.dataMap || {};
-          prevBlockMap = state.prevMap || {};
           currentPartIndex = state.activeIdx || blockCount || 1;
 
           if (blockCount > 0) {
@@ -633,11 +616,9 @@
         } catch (e) {}
       }
 
-      // 未執筆の部を開いた場合
       blockCount = 0;
       currentPartIndex = 1;
       blockDataMap = {};
-      prevBlockMap = {};
       renderPartTabs();
       document.getElementById('activeBlockCard').style.display = 'none';
       document.getElementById('actionArea').style.display = 'none';
@@ -874,6 +855,13 @@ ${query}
       document.getElementById('activeBlockText').innerText = text;
       document.getElementById('allCopyBtn').innerText = `📑 第${currentPartNum}部の全パートを一括コピー`;
 
+      // 最終パートを表示中なら「続きを書く」ボタンを有効化、過去パート表示中ならラベル変更
+      if (currentPartIndex < blockCount) {
+        document.getElementById('nextBtn').innerText = `⚡ パート ${currentPartIndex} の続きとして再分岐する`;
+      } else {
+        document.getElementById('nextBtn').innerText = `⚡ パート ${blockCount + 1} を執筆する`;
+      }
+
       savePartWritingState(currentPartNum);
     }
 
@@ -901,39 +889,39 @@ ${query}
       });
     }
 
+    // パート1から新規執筆（後ろのパートは綺麗にクリアして整合性を保つ）
     async function startGeneration() {
       const part = partsList.find(p => p.partNum === currentPartNum);
 
-      if (blockCount > 0 && !confirm(`第${currentPartNum}部には既に執筆本文があります。新しく書き直しますか？`)) {
+      if (blockCount > 0 && !confirm(`第${currentPartNum}部のパート1を新設定で書き直します。\n※パート2以降の古い文章はリセットされ、新パート1に合わせた新しい続きが書けるようになります。よろしいですか？`)) {
         return;
       }
 
       blockCount = 0;
       currentPartIndex = 1;
       blockDataMap = {};
-      prevBlockMap = {};
       renderPartTabs();
       document.getElementById('actionArea').style.display = 'none';
       document.getElementById('nextStoryArea').style.display = 'none';
       savePartWritingState(currentPartNum);
 
-      setLoading(true, `✍️ 【${part.title}】パート1を執筆中...`);
+      setLoading(true, `✍️ 【${part.title}】新パート1を執筆中...`);
 
       const prompt = `あなたはプロのライトノベル作家です。
-以下の設定と展開から『DOPPLE』の本文を執筆してください。
+最新の作品設定と、作者が構想した【この部の大まかな展開】をしっかりと読み取って、『DOPPLE』の第${currentPartNum}部 パート1を執筆してください。
 
-【作品設定】
+【作品設定（最新）】
 ${getAllContext()}
 
-【ストーリー：${part.title}】
+【ストーリー展開：${part.title}】
 ${part.story}
 
 【執筆ルール（最重要）】
-・この展開の「序盤〜導入シーン」から執筆を開始してください。
+・この展開の「冒頭・導入シーン」から執筆を開始してください。
 ・設定解説の朗読は厳禁。キャラクターの仕草、息遣い、会話のテンポ、緊迫感で見せること（Show, don't tell）。
 ・影山零の内気さとクロの凶暴さのコントラストを際立たせること。
 ・文章量は【2,000〜2,800文字程度】で執筆してください。
-・小説本文のみを出力してください。`;
+・解説や前置きは書かず、小説本文のみを出力してください。`;
 
       try {
         const text = await callGemini(prompt);
@@ -943,7 +931,6 @@ ${part.story}
         blockCount = 1;
         currentPartIndex = 1;
         blockDataMap[1] = limited;
-        prevBlockMap[1] = "";
 
         renderPartTabs();
         showActiveBlock(1);
@@ -955,32 +942,49 @@ ${part.story}
       }
     }
 
+    // 続きの執筆（現在見ている最新パートから確実に直結させる）
     async function generateNext(isFinal) {
       const part = partsList.find(p => p.partNum === currentPartNum);
+
+      // もし過去のパート（例: パート1）を表示した状態で続きを押した場合、それ以降のパートを切り落として新パート2にするか確認
+      if (currentPartIndex < blockCount) {
+        if (!confirm(`現在「パート ${currentPartIndex}」を表示中です。\nこのパートの直後から新しい展開として書き直しますか？\n（パート ${currentPartIndex + 1} 以降の古い文章は上書きされます）`)) {
+          return;
+        }
+        // 後続パートをトリム
+        for (let i = currentPartIndex + 1; i <= blockCount; i++) {
+          delete blockDataMap[i];
+        }
+        blockCount = currentPartIndex;
+      }
+
+      // 直前の最新テキストを確実に取得
       const lastText = blockDataMap[blockCount] || "";
       const safeLastText = lastText.length > 1500 ? lastText.substring(lastText.length - 1500) : lastText;
+      const targetPartIndex = blockCount + 1;
 
-      setLoading(true, isFinal ? `🏁 【${part.title}】完結パートを執筆中...` : `✍️ パート ${blockCount + 1} を執筆中...`);
+      setLoading(true, isFinal ? `🏁 【${part.title}】完結パートを執筆中...` : `✍️ パート ${targetPartIndex} を執筆中...`);
 
-      let endingInstruction = "直前の文章から自然につなげて、この部の大まかな展開の次のシーンへと物語を進めてください。";
+      let endingInstruction = "直前の文章から直接つなげて、この部のストーリー展開の次のシーンへと物語を進めてください。前後の辻褄を完璧に合わせてください。";
       if (isFinal) {
         endingInstruction = `直前の文章からつなげて、この部の大まかな展開の決着・クライマックスを描ききり、綺麗に完結させてください。`;
       }
 
-      const prompt = `あなたはプロのライトノベル作家です。『DOPPLE』の続きを執筆してください。
+      const prompt = `あなたはプロのライトノベル作家です。『DOPPLE』第${currentPartNum}部の続き（パート ${targetPartIndex}）を執筆してください。
 
-【作品設定】
+【作品設定（最新）】
 ${getAllContext()}
 
-【展開：${part.title}】
+【ストーリー展開：${part.title}】
 ${part.story}
 
-【直前の本文（抜粋）】
+【直前の本文（この直後から繋げてください）】
 ${safeLastText}
 
 【執筆指示】
 ・${endingInstruction}
 ・設定説明に終始せず、キャラクターの生々しい行動と会話を主体に描写すること。
+・直前の出来事やセリフの流れから違和感なく続きを展開すること。
 ・文章量は【2,000〜2,800文字程度】で執筆してください。
 ・小説本文のみを出力してください。`;
 
@@ -992,7 +996,6 @@ ${safeLastText}
         blockCount++;
         currentPartIndex = blockCount;
         blockDataMap[blockCount] = limited;
-        prevBlockMap[blockCount] = lastText;
 
         renderPartTabs();
         showActiveBlock(blockCount);
@@ -1008,17 +1011,24 @@ ${safeLastText}
       }
     }
 
+    // 現在表示中のパートだけをリトライ
     async function retryActiveBlock() {
       const part = partsList.find(p => p.partNum === currentPartNum);
-      const prevText = prevBlockMap[currentPartIndex] || "";
+      
+      let prevText = "";
+      if (currentPartIndex > 1) {
+        prevText = blockDataMap[currentPartIndex - 1] || "";
+      }
       const safeLastText = prevText.length > 1500 ? prevText.substring(prevText.length - 1500) : prevText;
 
       document.getElementById('retryBtn').disabled = true;
       document.getElementById('activeBlockText').innerText = "🔄 AIが再執筆中...";
 
-      let prompt = `あなたはプロのライトノベル作家です。『DOPPLE』【${part.title}】の本文を執筆してください。\n\n【設定】\n${getAllContext()}\n\n【展開】\n${part.story}`;
-      if (currentPartIndex > 1) {
-        prompt += `\n\n【直前本文】\n${safeLastText}\n\n続きを展開してください。`;
+      let prompt = "";
+      if (currentPartIndex === 1) {
+        prompt = `あなたはプロのライトノベル作家です。『DOPPLE』【${part.title}】パート1を最新設定に基づいて書き直してください。\n\n【最新設定】\n${getAllContext()}\n\n【展開】\n${part.story}\n\n冒頭シーンから2,000〜2,800文字で執筆してください。`;
+      } else {
+        prompt = `あなたはプロのライトノベル作家です。『DOPPLE』【${part.title}】パート ${currentPartIndex} を書き直してください。\n\n【最新設定】\n${getAllContext()}\n\n【展開】\n${part.story}\n\n【直前本文】\n${safeLastText}\n\n直前の文章から直接繋げて2,000〜2,800文字で執筆してください。`;
       }
 
       try {
@@ -1036,7 +1046,6 @@ ${safeLastText}
     }
 
     function goToNextPart() {
-      // 次の部に進む前に現在の部を確実に保存
       savePartWritingState(currentPartNum);
 
       const nextNum = currentPartNum + 1;
